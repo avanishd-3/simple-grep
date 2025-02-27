@@ -46,7 +46,9 @@ pub fn read_file_and_print_matches(arg: Argument) -> Result<(), Box<dyn Error>> 
             false => case_sensitive_line_matching(&arg.query, &contents),
         }
         .iter()
-        .for_each(|line| println!("{line}"));
+        .for_each(|line| 
+            // Make matching lines bold red
+            println!("{}", line.replace(&arg.query, &format!("\x1b[1;31m{}\x1b[0m", &arg.query))));
     }
 
     Ok(()) // Ok if sucessful
