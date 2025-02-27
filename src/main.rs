@@ -15,7 +15,7 @@ fn main() {
 
     // Handle error
     if let Err(e) = simple_grep::read_file_and_print_matches(config) {
-        println!("Application error: {}", e);
+        eprintln!("Application error: {}", e); // Print to stderr
 
         process::exit(1);
     }
