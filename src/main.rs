@@ -16,14 +16,8 @@ fn main() {
         process::exit(1);
     }); // Parse command-line arguments
 
-    let query = &config.query;
-    let filename = &config.filename;
-
-    println!("Searching for {}", query);
-    println!("In file {}", filename);
-
     // Handle error
-    if let Err(e) = simple_grep::read_file(config) {
+    if let Err(e) = simple_grep::read_file_and_print_matches(config) {
         println!("Application error: {}", e);
 
         process::exit(1);
