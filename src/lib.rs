@@ -52,7 +52,37 @@ pub fn read_file_and_print_matches(arg: Argument) -> Result<(), Box<dyn Error>> 
         .iter()
         .for_each(|line| 
             // Make matching lines bold red
-            println!("{}", line.replace(&arg.query, &format!("\x1b[1;31m{}\x1b[0m", &arg.query))));
+
+            if arg.insensitive {
+                // Bold red all occurrences regardless of case
+
+                let mut result = String::from(*line);
+                let lowercase_line = line.to_lowercase();
+                let lowercase_query = arg.query.to_lowercase();
+
+                // Find all occurrences of query in line
+                let mut start = 0;
+
+                while let Some(index) = lowercase_line[start..].find(&lowercase_query) {
+                    let index = index + start;
+                    let end = index + arg.query.len();
+
+                    // Replace query with bold red query
+                    result = result.replace(&line[index..end], &format!("\x1b[1;31m{}\x1b[0m", &line[index..end]));
+
+                    // Move start to end of query
+                    start = end;
+                }
+                
+                println!("{result}");
+            }
+            else {
+        
+                println!("{}", line.replace(&arg.query, &format!("\x1b[1;31m{}\x1b[0m", &arg.query)));
+            }
+        
+        
+        );
     }
 
     Ok(()) // Ok if sucessful
