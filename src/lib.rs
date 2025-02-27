@@ -17,6 +17,10 @@ pub struct Argument {
     /// Use case insensitive matching
     #[arg(default_value_t=false, short, long)] // Short and long refer to -i and --insensitive
     insensitive: bool,
+
+    /// Print count of matching lines in file
+    #[arg(default_value_t=false, short, long)] 
+    count: bool,
 }
 
 
@@ -26,12 +30,24 @@ pub fn read_file_and_print_matches(arg: Argument) -> Result<(), Box<dyn Error>> 
 
     // Print matching file contents
 
-    match arg.insensitive {
-        true => case_insensitive_line_matching(&arg.query, &contents),
-        false => case_sensitive_line_matching(&arg.query, &contents),
+    if arg.count {
+        let count = match arg.insensitive {
+            true => case_insensitive_line_matching(&arg.query, &contents).len(),
+            false => case_sensitive_line_matching(&arg.query, &contents).len(),
+        };
+
+        println!("{count}");
+        return Ok(());
     }
-    .iter()
-    .for_each(|line| println!("{line}"));
+
+    else {
+        match arg.insensitive {
+            true => case_insensitive_line_matching(&arg.query, &contents),
+            false => case_sensitive_line_matching(&arg.query, &contents),
+        }
+        .iter()
+        .for_each(|line| println!("{line}"));
+    }
 
     Ok(()) // Ok if sucessful
 }
@@ -63,6 +79,7 @@ mod tests {
             query: String::from("query"),
             filename: String::from("./tests/test_poem.txt"),
             insensitive: false, // Path is based on cwd (not executable location)
+            count: false,
         };
 
         let result = read_file_and_print_matches(arg);
@@ -76,6 +93,7 @@ mod tests {
             query: String::from("query"),
             filename: String::from("nonexistent_file.nonsense"),
             insensitive: false,
+            count: false,
         };
 
         let result = read_file_and_print_matches(arg);
