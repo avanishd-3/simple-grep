@@ -13,6 +13,10 @@ pub struct Argument {
 
     /// The file to search in
     filename: String,
+
+    /// Use case insensitive matching
+    #[arg(default_value_t=false, short, long)] // Short and long refer to -i and --insensitive
+    insensitive: bool,
 }
 
 
@@ -21,18 +25,30 @@ pub fn read_file_and_print_matches(arg: Argument) -> Result<(), Box<dyn Error>> 
     let contents = fs::read_to_string(arg.filename)?; // Return error (dynamic) for caller to handle
 
     // Print matching file contents
-    case_sensitive_line_matching(&arg.query, &contents)
-        .iter()
-        .for_each(|line| println!("{line}"));
+
+    match arg.insensitive {
+        true => case_insensitive_line_matching(&arg.query, &contents),
+        false => case_sensitive_line_matching(&arg.query, &contents),
+    }
+    .iter()
+    .for_each(|line| println!("{line}"));
 
     Ok(()) // Ok if sucessful
 }
 
-pub fn case_sensitive_line_matching<'a> (query: &str, contents: &'a str) -> Vec<&'a str> {
+fn case_sensitive_line_matching<'a> (query: &str, contents: &'a str) -> Vec<&'a str> {
 
     contents
         .lines()
         .filter(|line| line.contains(query))
+        .collect()
+}
+
+fn case_insensitive_line_matching<'a> (query: &str, contents: &'a str) -> Vec<&'a str> {
+
+    contents
+        .lines()
+        .filter(|line| line.to_lowercase().contains(&query.to_lowercase()))
         .collect()
 }
 
@@ -45,7 +61,8 @@ mod tests {
     fn test_read_file_success() {
         let arg = Argument {
             query: String::from("query"),
-            filename: String::from("./tests/test_poem.txt"), // Path is based on cwd (not executable location)
+            filename: String::from("./tests/test_poem.txt"),
+            insensitive: false, // Path is based on cwd (not executable location)
         };
 
         let result = read_file_and_print_matches(arg);
@@ -58,14 +75,13 @@ mod tests {
         let arg = Argument {
             query: String::from("query"),
             filename: String::from("nonexistent_file.nonsense"),
+            insensitive: false,
         };
 
         let result = read_file_and_print_matches(arg);
 
         assert!(result.is_err());
     }
-
-    // TODO -> Redirect stdout to check if output is correct
 
     /* Test case sensitive line matching */
 
@@ -145,6 +161,88 @@ mod tests {
         let contents = "";
 
         let result = case_sensitive_line_matching(query, contents);
+
+        assert_eq!(result, Vec::<&str>::new());
+    }
+
+    /* Test case insensitive line matching */
+
+    #[test]
+    fn test_case_insensitive_line_matching_is_case_insensitive() {
+        let query = "the";
+        let contents = "The quick brown fox\nJumps over the lazy dog\n";
+
+        let result = case_insensitive_line_matching(query, contents);
+
+        assert_eq!(result, vec!["The quick brown fox", "Jumps over the lazy dog"]);
+    }
+
+    #[test]
+    fn test_case_insensitive_line_matching_no_matching_lines() {
+        let query = "the";
+        let contents = "No\nmatches";
+
+        let result = case_insensitive_line_matching(query, contents);
+
+        assert_eq!(result, Vec::<&str>::new());
+    }
+
+    #[test]
+    fn test_case_insensitive_line_matching_multiple_matching_lines() {
+        let query = "the";
+        let contents = "The quick brown fox\nJumps over the lazy dog\nthe end\n";
+
+        let result = case_insensitive_line_matching(query, contents);
+
+        assert_eq!(result, vec!["The quick brown fox","Jumps over the lazy dog", "the end"]);
+    }
+
+    #[test]
+    fn test_case_insensitive_line_matching_one_word_per_line() {
+        let query = "hello";
+        let contents = "hello\nthere";
+
+        let result = case_insensitive_line_matching(query, contents);
+
+        assert_eq!(result, vec!["hello"]);
+    }
+
+    #[test]
+    fn test_case_insensitive_line_matching_duplicate_lines() {
+        let query = "the";
+        let contents = "the\nthe\nThe\n";
+
+        let result = case_insensitive_line_matching(query, contents);
+
+        assert_eq!(result, vec!["the", "the", "The"]);
+    }
+
+    #[test]
+    fn test_case_insensitive_line_matching_empty_contents() {
+        let query = "the";
+        let contents = "";
+
+        let result = case_insensitive_line_matching(query, contents);
+
+        assert_eq!(result, Vec::<&str>::new());
+    }
+
+    #[test]
+    fn test_case_insensitive_line_matching_empty_query() {
+        let query = "";
+        let contents = "The quick brown fox\nJumps over the lazy dog\n";
+
+        let result = case_insensitive_line_matching(query, contents);
+
+        assert_eq!(result, contents.lines().collect::<Vec<&str>>());
+    }
+
+    #[test]
+    fn test_case_insensitive_line_matching_empty_query_and_contents() {
+        let query = "";
+        let contents = "";
+
+        let result = case_insensitive_line_matching(query, contents);
 
         assert_eq!(result, Vec::<&str>::new());
     }
