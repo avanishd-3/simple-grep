@@ -1,3 +1,6 @@
+#![warn(clippy::all, clippy::pedantic)] // Linting
+
+
 // Standard library
 use std::process; // For exiting
 // use std::path::PathBuf; // For file paths
@@ -17,7 +20,7 @@ fn main() {
         true => {
             // Handle error
             if let Err(e) = simple_grep::read_dir_and_print_matches(&config) {
-                eprintln!("Application error: {}", e); // Print to stderr
+                eprintln!("Application error: {e}"); // Print to stderr
 
                 process::exit(1);
             }
@@ -25,7 +28,7 @@ fn main() {
         false => {
             // Handle error
             if let Err(e) = simple_grep::read_file_and_print_matches(&config) {
-                eprintln!("Application error: {}", e); // Print to stderr
+                eprintln!("Application error: {e}"); // Print to stderr
 
                 process::exit(1);
             }
