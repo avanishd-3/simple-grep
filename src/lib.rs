@@ -4,6 +4,7 @@ use std::fs; // For file stuff
 
 // External crates
 use clap::Parser; // For command-line argument parsing
+use walkdir::WalkDir; // For directory traversal
 
 #[derive(Parser, Debug)]
 #[command(version)]
@@ -12,7 +13,7 @@ pub struct Argument {
     query: String,
 
     /// The file to search in
-    filename: String,
+    files: String,
 
     /// Use case insensitive matching
     #[arg(default_value_t=false, short, long)] // Short and long refer to -i and --insensitive
@@ -25,16 +26,26 @@ pub struct Argument {
     /// Match whole word
     #[arg(default_value_t=false, short, long)]
     word: bool,
+
+    /// Search directory
+    #[arg(default_value_t=false, short, long)]
+    pub recursive: bool,
 }
 
 
-pub fn read_file_and_print_matches(arg: Argument) -> Result<(), Box<dyn Error>> {
+pub fn read_file_and_print_matches(arg: &Argument) -> Result<(), Box<dyn Error>> {
     // Read file
-    let contents = fs::read_to_string(arg.filename)?; // Return error (dynamic) for caller to handle
+    let contents = fs::read_to_string(arg.files.clone())?; // Return error (dynamic) for caller to handle
 
     // Print matching file contents
 
     if arg.count {
+
+        if arg.recursive {
+            // Print file path
+            print!("{}: ", arg.files);
+        }
+
         let count = match arg.insensitive {
             true => case_insensitive_line_matching(&arg.query, &contents, &arg.word).len(),
             false => case_sensitive_line_matching(&arg.query, &contents, &arg.word).len(),
@@ -56,6 +67,11 @@ pub fn read_file_and_print_matches(arg: Argument) -> Result<(), Box<dyn Error>> 
             if arg.insensitive {
                 // Bold red all occurrences regardless of case
 
+                if arg.recursive {
+                    // Print file path
+                    print!("{}: ", arg.files);
+                }
+
                 let mut result = String::from(*line);
                 let lowercase_line = line.to_lowercase();
                 let lowercase_query = arg.query.to_lowercase();
@@ -76,13 +92,46 @@ pub fn read_file_and_print_matches(arg: Argument) -> Result<(), Box<dyn Error>> 
                 
                 println!("{result}");
             }
+            
             else {
+
+                if arg.recursive {
+                    // Print file path
+                    print!("{}: ", arg.files);
+                }
         
                 println!("{}", line.replace(&arg.query, &format!("\x1b[1;31m{}\x1b[0m", &arg.query)));
             }
         
         
         );
+    }
+
+    Ok(()) // Ok if sucessful
+}
+
+pub fn read_dir_and_print_matches(arg: &Argument) -> Result<(), Box<dyn Error>> {
+    // Leave function signature as is even though it won't return an error for consistency in ../src/main.rs
+
+    // Skip directories owner doesn't have permission to acess
+    for entry in WalkDir::new(arg.files.clone()).into_iter().filter_map(|e| e.ok()) { 
+        let path = entry.path();
+
+        if path.is_file() {
+            let file = path.to_str().unwrap().to_string(); // Convert path to string
+
+            let new_argument = Argument {
+                query: arg.query.clone(),
+                files: file,
+                insensitive: arg.insensitive,
+                count: arg.count,
+                word: arg.word,
+                recursive: true,
+            };
+
+            // Read file
+            let _ = read_file_and_print_matches(&new_argument); // Ignore errors
+        }
     }
 
     Ok(()) // Ok if sucessful
@@ -133,13 +182,14 @@ mod tests {
     fn test_read_file_success() {
         let arg = Argument {
             query: String::from("query"),
-            filename: String::from("./tests/test_poem.txt"),
+            files: String::from("./tests/test_poem.txt"),
             insensitive: false, // Path is based on cwd (not executable location)
             count: false,
             word: false,
+            recursive: false,
         };
 
-        let result = read_file_and_print_matches(arg);
+        let result = read_file_and_print_matches(&arg);
 
         assert!(result.is_ok());
     }
@@ -148,15 +198,35 @@ mod tests {
     fn test_read_file_error() {
         let arg = Argument {
             query: String::from("query"),
-            filename: String::from("nonexistent_file.nonsense"),
+            files: String::from("nonexistent_file.nonsense"),
             insensitive: false,
             count: false,
             word: false,
+            recursive: false,
         };
 
-        let result = read_file_and_print_matches(arg);
+        let result = read_file_and_print_matches(&arg);
 
         assert!(result.is_err());
+    }
+
+    /* Test read dir and print matches */
+
+    #[test]
+    fn test_read_dir_success() {
+        let arg = Argument {
+            query: String::from("query"),
+            files: String::from("./tests"),
+            insensitive: false, // Path is based on cwd (not executable location)
+            count: false,
+            word: false,
+            recursive: true,
+        };
+
+        let result = read_dir_and_print_matches(&arg);
+
+        assert!(result.is_ok());
+
     }
 
     /* Test case sensitive line matching */

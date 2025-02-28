@@ -13,10 +13,22 @@ fn main() {
     
     let config = Argument::parse(); // Parse command-line arguments w/ clap
 
-    // Handle error
-    if let Err(e) = simple_grep::read_file_and_print_matches(config) {
-        eprintln!("Application error: {}", e); // Print to stderr
+    match &config.recursive {
+        true => {
+            // Handle error
+            if let Err(e) = simple_grep::read_dir_and_print_matches(&config) {
+                eprintln!("Application error: {}", e); // Print to stderr
 
-        process::exit(1);
+                process::exit(1);
+            }
+        },
+        false => {
+            // Handle error
+            if let Err(e) = simple_grep::read_file_and_print_matches(&config) {
+                eprintln!("Application error: {}", e); // Print to stderr
+
+                process::exit(1);
+            }
+        }
     }
 }
