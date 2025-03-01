@@ -1,7 +1,7 @@
 # simple-grep
 Simple grep implementation written in Rust
 
-## Installation Instructions
+## Installation
 
 Make sure cargo is installed. If not, run
 ```
@@ -17,15 +17,28 @@ To install simple grep, run
 cargo install --git https://github.com/avanishd-3/simple-grep.git
 ```
 
-To build simple-grep for your system, run
+Run
 ```
-cargo run
+simple-grep --h
 ````
-
-## Usage Instructions
-
-Run 
-```
-cargo run -- -h
-```
 to see all available commands
+
+## Building
+
+You need [Rust](https://www.rust-lang.org/) to compile simple-grep.
+
+Once installed do,
+```
+git clone https://github.com/avanishd-3/simple-grep.git
+cd simple-grep
+cargo build --release
+./target/release/simple-grep
+```
+
+## Testing
+
+Run
+```
+cargo test --all
+```
+in simple-grep root directory
