@@ -7,12 +7,13 @@ use std::fs; // For file stuff
 // External crates
 use clap::Parser; // For command-line argument parsing
 use walkdir::WalkDir; // For directory traversal
+use regex::Regex; // For regular expressions
 
 #[derive(Parser, Debug)]
 #[command(version)]
 pub struct Argument {
-    /// The string to search for
-    query: String,
+    /// The pattern to search for (includes regex)
+    pattern: String,
 
     /// The file to search in
     files: String,
@@ -37,6 +38,10 @@ pub struct Argument {
 /// # Errors
 ///
 /// Will error if a file is not readable or cannot be found
+/// 
+/// # Panics
+/// 
+/// Will panic if a regex query is invalid
 pub fn read_file_and_print_matches(arg: &Argument) -> Result<(), Box<dyn Error>> {
     // Read file
     let contents = fs::read_to_string(arg.files.clone())?; // Return error (dynamic) for caller to handle
@@ -51,9 +56,9 @@ pub fn read_file_and_print_matches(arg: &Argument) -> Result<(), Box<dyn Error>>
         }
 
         let count = if arg.insensitive {
-            case_insensitive_line_matching(&arg.query, &contents, arg.word).len()
+            case_insensitive_line_matching(&arg.pattern, &contents, arg.word).len()
         } else {
-            case_sensitive_line_matching(&arg.query, &contents, arg.word).len()
+            case_sensitive_line_matching(&arg.pattern, &contents, arg.word).len()
         };
 
         println!("{count}");
@@ -62,8 +67,8 @@ pub fn read_file_and_print_matches(arg: &Argument) -> Result<(), Box<dyn Error>>
 
     else {
         match arg.insensitive {
-            true => case_insensitive_line_matching(&arg.query, &contents, arg.word),
-            false => case_sensitive_line_matching(&arg.query, &contents, arg.word),
+            true => case_insensitive_line_matching(&arg.pattern, &contents, arg.word),
+            false => case_sensitive_line_matching(&arg.pattern, &contents, arg.word),
         }
         .iter()
         .for_each(|line| 
@@ -79,14 +84,14 @@ pub fn read_file_and_print_matches(arg: &Argument) -> Result<(), Box<dyn Error>>
 
                 let mut result = String::from(*line);
                 let lowercase_line = line.to_lowercase();
-                let lowercase_query = arg.query.to_lowercase();
+                let lowercase_query = arg.pattern.to_lowercase();
 
                 // Find all occurrences of query in line
                 let mut start = 0;
 
                 while let Some(index) = lowercase_line[start..].find(&lowercase_query) {
                     let index = index + start;
-                    let end = index + arg.query.len();
+                    let end = index + arg.pattern.len();
 
                     // Replace query with bold red query
                     result = result.replace(&line[index..end], &format!("\x1b[1;31m{}\x1b[0m", &line[index..end]));
@@ -104,8 +109,13 @@ pub fn read_file_and_print_matches(arg: &Argument) -> Result<(), Box<dyn Error>>
                     // Print file path
                     print!("{}: ", arg.files);
                 }
+
+                let regex_query = Regex::new(&arg.pattern).unwrap();
+
+                // Bold red matching parts of line
+                let result = regex_query.replace_all(line, "\x1b[1;31m$0\x1b[0m".to_string());
         
-                println!("{}", line.replace(&arg.query, &format!("\x1b[1;31m{}\x1b[0m", &arg.query)));
+                println!("{result}");
             }
         
         
@@ -133,7 +143,7 @@ pub fn read_dir_and_print_matches(arg: &Argument) -> Result<(), Box<dyn Error>> 
             let file = path.to_str().unwrap().to_string(); // Convert path to string
 
             let new_argument = Argument {
-                query: arg.query.clone(),
+                pattern: arg.pattern.clone(),
                 files: file,
                 insensitive: arg.insensitive,
                 count: arg.count,
@@ -151,38 +161,32 @@ pub fn read_dir_and_print_matches(arg: &Argument) -> Result<(), Box<dyn Error>> 
 
 fn case_sensitive_line_matching<'a> (query: &str, contents: &'a str, whole_word: bool) -> Vec<&'a str> {
 
-    // If whole word matching is enabled, only match if query is a whole word in the line
+    let mut regex_query = Regex::new(query).unwrap();
+
+    // Only match if query is a whole word in the line
     if whole_word {
-        contents
-            .lines()
-            .filter(|line| line.split_whitespace().any(|word| word == query))
-            .collect()
+        regex_query = Regex::new(&format!(r"\b{query}\b")).unwrap();
     }
 
-    else {
-        contents
-            .lines()
-            .filter(|line| line.contains(query))
-            .collect()
-    }
+    contents
+        .lines()
+        .filter(|line| regex_query.is_match(line))
+        .collect()
 }
 
 fn case_insensitive_line_matching<'a> (query: &str, contents: &'a str, whole_word: bool) -> Vec<&'a str> {
 
-    // If whole word matching is enabled, only match if query is a whole word in the line
+    let mut regex_query = Regex::new(&format!(r"(?i){query}")).unwrap(); // Case insensitive
+    
+    // Oonly match if query is a whole word in the line
     if whole_word {
-        contents
-            .lines()
-            .filter(|line| line.to_lowercase().split_whitespace().any(|word| word == query.to_lowercase()))
-            .collect()
+        regex_query = Regex::new(&format!(r"(?i)\b{query}\b")).unwrap();
     }
 
-    else {
-        contents
-        .lines()
-        .filter(|line| line.to_lowercase().contains(&query.to_lowercase()))
-        .collect()
-    }
+    contents
+    .lines()
+    .filter(|line| regex_query.is_match(line))
+    .collect()
 }
 
 #[cfg(test)]
@@ -193,7 +197,7 @@ mod tests {
     #[test]
     fn test_read_file_success() {
         let arg = Argument {
-            query: String::from("query"),
+            pattern: String::from("query"),
             files: String::from("./tests/test_poem.txt"),
             insensitive: false, // Path is based on cwd (not executable location)
             count: false,
@@ -209,7 +213,7 @@ mod tests {
     #[test]
     fn test_read_file_error() {
         let arg = Argument {
-            query: String::from("query"),
+            pattern: String::from("query"),
             files: String::from("nonexistent_file.nonsense"),
             insensitive: false,
             count: false,
@@ -227,7 +231,7 @@ mod tests {
     #[test]
     fn test_read_dir_success() {
         let arg = Argument {
-            query: String::from("query"),
+            pattern: String::from("query"),
             files: String::from("./tests"),
             insensitive: false, // Path is based on cwd (not executable location)
             count: false,
